@@ -6,11 +6,10 @@
       "use": "@vercel/node"
     }
   ],
-  "routes": [
-    { "src": "/", "dest": "/" },
+  "rewrites": [
     {
-      "src": "/api/scrape",
-      "dest": "api/scrape.js"
+      "source": "/api/:path*",
+      "destination": "/api/scrape.js"
     }
   ]
 }
