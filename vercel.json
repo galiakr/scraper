@@ -7,6 +7,7 @@
     }
   ],
   "routes": [
+    { "src": "/", "dest": "/" },
     {
       "src": "/api/scrape",
       "dest": "api/scrape.js"

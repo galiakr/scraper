@@ -103,6 +103,14 @@ const parseConfsTechHTML = (htmlArray) => {
 };
 
 export default async function handler(req, res) {
+  console.log('API Route Hit!');
+  console.log('Request Method:', req.method);
+  console.log('Request Query:', req.query);
+  console.log('Environment:', {
+    MONGO_URI: process.env.MONGO_URI ? 'Set' : 'Not Set',
+    NODE_ENV: process.env.NODE_ENV,
+  });
+
   const { url, className } = req.query;
 
   if (!url || !className) {
