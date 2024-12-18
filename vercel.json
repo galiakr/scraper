@@ -1,8 +1,5 @@
 {
   "version": 2,
-  "buildSettings": {
-    "startCommand": "npm run build"
-  },
   "builds": [
     {
       "src": "api/scrape.js",
