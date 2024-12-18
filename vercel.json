@@ -11,6 +11,6 @@
       "source": "/api/:path*",
       "destination": "/api/scrape.js"
     },
-    { "source": "/", "destination": "/dist/index.html" }
+    { "source": "/", "destination": "/index.html" }
   ]
 }
