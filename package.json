@@ -13,6 +13,7 @@
     "@sparticuz/chromium": "^131.0.1",
     "axios": "^1.7.9",
     "cheerio": "^1.0.0",
+    "mongodb": "^6.13.0",
     "mongoose": "^8.8.4",
     "puppeteer": "^23.10.4",
     "puppeteer-core": "^23.10.4",

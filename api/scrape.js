@@ -4,11 +4,107 @@ import * as cheerio from 'cheerio';
 
 // Define Mongoose Schema and Model
 const ScrapedDataSchema = new mongoose.Schema({
-  url: String,
-  className: String,
-  elements: [String],
-  parsedData: [Object], // To store parsed results
+  name: { type: String, required: true },
+  url: { type: String, required: true, unique: true },
+  startDate: { type: Date },
+  endDate: { type: Date },
+  city: String,
+  country: String,
+  cfpUrl: { type: String, unique: true },
+  cfpEndDate: Date,
+  twitter: String,
+  mastodon: String,
+  topics: [String],
+  codeOfConduct: String,
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
 });
+
+// Create indexes for faster duplicate checking
+ScrapedDataSchema.index({ url: 1, cfpUrl: 1 });
+
+// Pre-save middleware to update the updatedAt timestamp
+ScrapedDataSchema.pre('save', function (next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+// Helper function to clean URLs (remove query parameters and trailing slashes)
+const cleanUrl = (url) => {
+  if (!url) return url;
+  try {
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.hostname}${urlObj.pathname}`.replace(
+      /\/$/,
+      ''
+    );
+  } catch (e) {
+    return url;
+  }
+};
+
+// Function to handle database connection
+const connectDB = async () => {
+  if (!mongoose.connection.readyState) {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+  }
+};
+
+// Function to save scraped data with duplicate checking
+const saveScrapedData = async (parsedData) => {
+  const results = {
+    saved: 0,
+    duplicates: 0,
+    errors: [],
+  };
+
+  for (const item of parsedData) {
+    try {
+      // Clean URLs before checking for duplicates
+      const cleanedUrl = cleanUrl(item.url);
+      const cleanedCfpUrl = cleanUrl(item.cfpUrl);
+
+      // Prepare the document
+      const doc = {
+        ...item,
+        url: cleanedUrl,
+        cfpUrl: cleanedCfpUrl,
+        startDate: item.startDate !== 'N/A' ? new Date(item.startDate) : null,
+        endDate: item.endDate !== 'N/A' ? new Date(item.endDate) : null,
+      };
+
+      // Check for duplicates using URL or CFP URL
+      const existingDoc = await ScrapedData.findOne({
+        $or: [{ url: cleanedUrl }, { cfpUrl: cleanedCfpUrl }],
+      });
+
+      if (existingDoc) {
+        // Update existing document with new information
+        await ScrapedData.findByIdAndUpdate(existingDoc._id, {
+          $set: {
+            ...doc,
+            updatedAt: new Date(),
+          },
+        });
+        results.duplicates++;
+      } else {
+        // Create new document
+        await ScrapedData.create(doc);
+        results.saved++;
+      }
+    } catch (error) {
+      results.errors.push({
+        item: item.name || 'Unknown',
+        error: error.message,
+      });
+    }
+  }
+
+  return results;
+};
 
 const ScrapedData =
   mongoose.models.ScrapedData ||
@@ -119,12 +215,8 @@ export default async function handler(req, res) {
 
   try {
     // Connect to MongoDB
-    if (!mongoose.connection.readyState) {
-      await mongoose.connect(process.env.MONGO_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
-    }
+    await connectDB(); // Use the new connectDB function
+    console.log('MongoDB Connection State:', mongoose.connection.readyState);
 
     // Launch Puppeteer
     const browser = await puppeteer.launch({
@@ -147,18 +239,23 @@ export default async function handler(req, res) {
     // Close Puppeteer
     await browser.close();
 
-    // Save scraped data to the database
-    const scrapedData = new ScrapedData({
-      url,
-      className,
-      elements,
+    // Save the scraped data with duplicate checking
+    console.log('Attempting to save data:', parsedData.length, 'items');
+    const results = await saveScrapedData(parsedData);
+    console.log(`Saved: ${results.saved}, Duplicates: ${results.duplicates}`);
+    if (results.errors.length > 0) {
+      console.log('Errors:', results.errors);
+    }
+
+    res.status(200).json({
+      success: true,
+      results,
       parsedData,
     });
-    await scrapedData.save();
-
-    res.status(200).json({ parsedData });
   } catch (error) {
     console.error('Error scraping:', error);
     res.status(500).json({ error: error.message });
   }
 }
+
+export { ScrapedData, saveScrapedData, connectDB };
